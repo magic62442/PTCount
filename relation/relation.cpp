@@ -6,6 +6,7 @@
 #include "utils.h"
 
 #include <algorithm>
+#include "suffix_exclusion.h"
 
 
 
@@ -18,22 +19,9 @@ static size_t countArrayMatchesInRange(const VertexID *values, ui beginPos, ui e
         return checkExists(values, beginPos, endPos, v) != endPos ? 1 : 0;
     }
 
-    std::vector<VertexID> checkedValues;
-    checkedValues.reserve(toCheck.size());
-    for (VertexID u: toCheck) checkedValues.push_back(partMatch[u]);
-    std::sort(checkedValues.begin(), checkedValues.end());
-    checkedValues.erase(std::unique(checkedValues.begin(), checkedValues.end()), checkedValues.end());
-
-    size_t matched = 0;
-    size_t j = 0;
-    for (ui i = beginPos; i < endPos && j < checkedValues.size(); ++i) {
-        while (j < checkedValues.size() && checkedValues[j] < values[i]) ++j;
-        if (j < checkedValues.size() && checkedValues[j] == values[i]) {
-            ++matched;
-            ++j;
-        }
-    }
-    return matched;
+    return suffix_count::countExcluded(
+            endPos - beginPos, [values, beginPos](size_t i) { return values[beginPos+i]; },
+            partMatch, toCheck, []() {});
 }
 
 ui checkExists(const VertexID *array, const ui begin, const ui end, const ui target) {

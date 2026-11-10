@@ -3,6 +3,8 @@
 //
 
 #include "utils.h"
+#include <limits>
+#include <stdexcept>
 #include <algorithm>
 #include <array>
 #include <mutex>
@@ -57,20 +59,19 @@ int quickPow10(int n)
 
 Count choosec(Count n, int k)
 {
-    if (n < 0)
-        return 0;
-    if (k > n)
-        return 0;
-    if (k == 0)
-        return 1;
-    Count nom = n;
-    Count denom = 1;
-    for (int i = 1; i < k; i++)
-    {
-        nom *= (n-i);
-        denom *= (i+1);
+    if (n < 0 || k < 0 || k > n) return 0;
+    // C(n, i) = C(n, i-1) * (n-i+1) / i.  Divide each step,
+    // not after forming the (potentially overflowing) falling factorial.
+    k = static_cast<int>(std::min<Count>(k, n - k));
+    Count result = 1;
+    for (int i = 1; i <= k; ++i) {
+        // Both factors fit signed int64, so their product fits signed int128.
+        const __int128 next = static_cast<__int128>(result) * (n - i + 1) / i;
+        if (next > std::numeric_limits<Count>::max())
+            throw std::overflow_error("choosec result exceeds Count range");
+        result = static_cast<Count>(next);
     }
-    return nom / denom;
+    return result;
 }
 
 void leftShift(std::vector<bool> &arr, int k) {
@@ -234,6 +235,35 @@ size_t countFilteredPairIntersection(const VertexID *lhs, size_t lhsLen,
     return cnt;
 }
 
+size_t countFilteredPairAssignments(const VertexID *lhs, size_t lhsLen,
+                                    const VertexID *rhs, size_t rhsLen,
+                                    const bool *visited) {
+    size_t i = 0, j = 0, left = 0, right = 0, both = 0;
+    while (i < lhsLen && j < rhsLen) {
+        const VertexID a = lhs[i], b = rhs[j];
+        if (a < b) {
+            left += visited == nullptr || !visited[a];
+            ++i;
+        }
+        else if (b < a) {
+            right += visited == nullptr || !visited[b];
+            ++j;
+        }
+        else {
+            const bool valid = visited == nullptr || !visited[a];
+            left += valid;
+            right += valid;
+            both += valid;
+            ++i;
+            ++j;
+        }
+    }
+    left += countFilteredArray(lhs + i, lhsLen - i, visited);
+    right += countFilteredArray(rhs + j, rhsLen - j, visited);
+    const __int128 total = static_cast<__int128>(left) * right - both;
+    return total <= 0 ? 0 : static_cast<size_t>(total);
+}
+
 size_t countFilteredIntersection(uint64_t mask, const VertexID * const *values,
                                  const size_t *lengths, size_t numSets,
                                  const bool *visited) {
@@ -387,34 +417,13 @@ void computeFilteredIntersections3(const VertexID *a, size_t aLen,
         }
         if (visited != nullptr && visited[minValue]) continue;
 
-        switch (membership) {
-            case 1ULL:
-                ++intersections[1];
-                break;
-            case 2ULL:
-                ++intersections[2];
-                break;
-            case 3ULL:
-                ++intersections[1]; ++intersections[2]; ++intersections[3];
-                break;
-            case 4ULL:
-                ++intersections[4];
-                break;
-            case 5ULL:
-                ++intersections[1]; ++intersections[4]; ++intersections[5];
-                break;
-            case 6ULL:
-                ++intersections[2]; ++intersections[4]; ++intersections[6];
-                break;
-            case 7ULL:
-                ++intersections[1]; ++intersections[2]; ++intersections[3];
-                ++intersections[4]; ++intersections[5]; ++intersections[6];
-                ++intersections[7];
-                break;
-            default:
-                break;
-        }
+        ++intersections[membership];
     }
+    // Exact membership masks -> all subset intersection cardinalities.
+    for (size_t bit = 0; bit < 3; ++bit)
+        for (size_t mask = 0; mask < 8; ++mask)
+            if ((mask & (1ULL << bit)) == 0)
+                intersections[mask] += intersections[mask | (1ULL << bit)];
 }
 
 uint64_t simplifyUniqueCombineMask(uint64_t mask,
@@ -480,6 +489,8 @@ size_t numUniqueCombine(const VertexID * const *values, const size_t *lengths,
         if (values[i] == nullptr || lengths[i] == 0) return 0;
     }
     if (numSets == 1) return countFilteredArray(values[0], lengths[0], visited);
+    if (numSets == 2)
+        return countFilteredPairAssignments(values[0], lengths[0], values[1], lengths[1], visited);
 
     thread_local std::vector<size_t> intersectionCache;
     if (numSets == 3) {

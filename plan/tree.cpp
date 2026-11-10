@@ -2187,6 +2187,18 @@ int Tree::computeSymmetryRules(const PatternGraph &p) {
                 // for each selected rule set (_nodes[i].candidateRules[pos[i] - 1]), check whether each rule is valid
                 for (int i = 0; i < nodesWithRule.size(); ++i) {
                     for (const auto &rule: _nodes[nodesWithRule[i]].candidateRules[pos[i] - 1]) {
+                        // Retain the ordinary SCOPE guard: partial rule overlap
+                        // across bags is not sufficient for counting correctness.
+                        bool wholeOrDisjoint = true;
+                        for (VertexID bag = 0; bag < _numNodes; ++bag) {
+                            size_t overlap = 0;
+                            for (VertexID u : rule) overlap += _nodes[bag].hasVertex(u);
+                            if (overlap != 0 && overlap != rule.size()) {
+                                wholeOrDisjoint = false;
+                                break;
+                            }
+                        }
+                        if (!wholeOrDisjoint) continue;
                         int ruleID = 0;
                         for (const VertexID &w: rule)
                             ruleID += 1 << w;

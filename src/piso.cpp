@@ -2949,6 +2949,9 @@ static PisoSkylinePlanInfo toPublicSkylinePlanInfo(const PatternGraph &basePatte
     out.planID = candidate.planID;
     out.costModelValid = candidate.costModelValid;
     out.totalCost = candidate.totalCost;
+    const auto countingVertices = pisoPrefixBeforeGroupedSuffix(candidate.finalTree);
+    out.countingVertexCount = static_cast<int>(countingVertices.size());
+    out.countingEdgeCount = pisoInternalEdgeCount(effectivePattern, countingVertices);
     out.c2 = pisoEffectiveC2(effectivePattern, candidate.finalTree);
     out.lastLevelHasCheckOrBound = pisoLastLevelHasCheckOrBound(candidate.finalTree);
     out.lastLevelCategory = pisoLastLevelCategory(candidate.finalTree);

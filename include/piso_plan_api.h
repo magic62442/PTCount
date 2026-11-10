@@ -26,6 +26,8 @@ struct PisoSkylinePlanInfo {
     bool costModelValid = false;
     double totalCost = 0.0;
     int c2 = 0;
+    int countingVertexCount = 0;
+    int countingEdgeCount = 0;
     bool lastLevelHasCheckOrBound = false;
     std::string lastLevelCategory;
     std::vector<PisoRouteFeature> hardFeatures;

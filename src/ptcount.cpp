@@ -35,6 +35,7 @@ struct Options {
 
 struct RouteFeature {
     int fullVertexCount = 0;
+    int intersectionVertexCount = 0;
     int fullEdgeCount = 0;
     CanonType fullCanonValue = 0;
     int edgeCount = 0;
@@ -240,6 +241,7 @@ RouteFeature makeTreeBagFeature(const PatternGraph &termPattern,
     if (termPattern.isClique() && termPattern.getNumVertices() >= 4 && termPattern.getOrbitType() != 2)
         f.normalListWeightSum = 0.5;
 
+    f.intersectionVertexCount = static_cast<int>(intersectionVertices.size());
     f.edgeCount = subgraphEdgeCount(termPattern, intersectionVertices);
     auto internalPairs = filterInternalSymmetryPairs(intersectionVertices, treePairs);
     f.symmetryFactor = estimateSymmetryBreakingRuleRatio(intersectionVertices, internalPairs);
@@ -422,6 +424,22 @@ std::string pisoHardDecision(const std::vector<RouteFeature> &term1Features,
     return "unknown";
 }
 
+bool hasCountingSuffix(const PisoSkylinePlanInfo &plan) {
+    return plan.lastLevelCategory != "0_all_traverse";
+}
+
+// Compare every hardest tISO ICost term against the entire p[Vp \ C].
+// Do not apply intersection-prefix truncation to the counting term.
+bool countingTermStructurallyWorse(const std::vector<RouteFeature> &terms,
+                                   const PisoSkylinePlanInfo &plan) {
+    if (terms.empty() || plan.countingVertexCount == 0) return false;
+    return std::all_of(terms.begin(), terms.end(), [&](const RouteFeature &term) {
+        return term.intersectionVertexCount < plan.countingVertexCount ||
+               (term.intersectionVertexCount == plan.countingVertexCount &&
+                term.edgeCount > plan.countingEdgeCount);
+    });
+}
+
 bool pisoLastLevelGuardPasses(const PisoSkylinePlanInfo &plan) {
     if (plan.lastLevelCategory == "0_all_traverse" ||
         plan.lastLevelCategory == "1_singleton") {
@@ -450,7 +468,10 @@ std::string guardedHardSubgraphDecision(const std::vector<RouteFeature> &tisoFea
 
 EquationPlan buildTisoEquation(const PatternGraph &pattern) {
     EquationPlan plan;
-    genEquation(pattern, plan.patterns, plan.trees);
+    PatternGraph executionPattern(pattern);
+    // Match the tISO executor's undirected-CSR edge aggregation convention.
+    if (executionPattern.getOrbitType() == 2) executionPattern.setEOrbitDir(false);
+    genEquation(executionPattern, plan.patterns, plan.trees);
     return plan;
 }
 
@@ -497,17 +518,29 @@ Selection choosePlan(const PatternGraph &pattern,
         return finish();
     }
 
+    if (std::none_of(skyline.plans.begin(), skyline.plans.end(), hasCountingSuffix)) {
+        selection.method = Method::Tiso;
+        selection.reason = "no_piso_counting_suffix";
+        return finish();
+    }
+    std::set<int> ruledOutPlanIDs;
     std::vector<int> pisoRuleWinners;
     size_t tisoRuleWins = 0;
     for (const PisoSkylinePlanInfo &plan : skyline.plans) {
         std::string rule = "unknown";
-        if (plan.c2 > selection.c1) {
+        if (!hasCountingSuffix(plan) || countingTermStructurallyWorse(tisoFeatures, plan)) {
+            rule = "choose_tiso";
+        }
+        else if (plan.c2 > selection.c1) {
             rule = "choose_tiso";
         }
         else if (plan.c2 == selection.c1) {
             rule = guardedHardSubgraphDecision(tisoFeatures, plan);
         }
-        if (rule == "choose_tiso") ++tisoRuleWins;
+        if (rule == "choose_tiso") {
+            ++tisoRuleWins;
+            ruledOutPlanIDs.insert(plan.planID);
+        }
         else if (rule == "choose_piso") pisoRuleWinners.push_back(plan.planID);
     }
 
@@ -550,7 +583,9 @@ Selection choosePlan(const PatternGraph &pattern,
     skyline = summarizePisoSkylineWorkspace(*workspace);
     const PisoSkylinePlanInfo *bestPiso = nullptr;
     for (const PisoSkylinePlanInfo &plan : skyline.plans) {
-        if (!plan.costModelValid) continue;
+        // A numerical estimate must not revive a structurally rejected plan.
+        if (!hasCountingSuffix(plan) || ruledOutPlanIDs.count(plan.planID) ||
+            !plan.costModelValid) continue;
         if (bestPiso == nullptr || plan.totalCost < bestPiso->totalCost ||
             (plan.totalCost == bestPiso->totalCost && plan.planID < bestPiso->planID))
             bestPiso = &plan;

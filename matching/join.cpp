@@ -6,6 +6,7 @@
 #include "compute_set_intersection.h"
 
 #include <algorithm>
+#include "suffix_exclusion.h"
 #include <array>
 
 
@@ -53,22 +54,9 @@ static size_t countFilteredValues(const VertexID *values, size_t length, const b
         if (toCheck->size() == 1) {
             return length - (std::binary_search(values, values + length, partMatch[(*toCheck)[0]]) ? 1 : 0);
         }
-        std::vector<VertexID> checkedValues;
-        checkedValues.reserve(toCheck->size());
-        for (VertexID u: *toCheck) checkedValues.push_back(partMatch[u]);
-        std::sort(checkedValues.begin(), checkedValues.end());
-        checkedValues.erase(std::unique(checkedValues.begin(), checkedValues.end()), checkedValues.end());
-
-        size_t matched = 0;
-        size_t j = 0;
-        for (size_t i = 0; i < length && j < checkedValues.size(); ++i) {
-            while (j < checkedValues.size() && checkedValues[j] < values[i]) ++j;
-            if (j < checkedValues.size() && checkedValues[j] == values[i]) {
-                ++matched;
-                ++j;
-            }
-        }
-        return length - matched;
+        return length - suffix_count::countExcluded(
+                length, [values](size_t i) { return values[i]; }, partMatch,
+                *toCheck, []() {});
     }
     if (visited == nullptr) return length;
     size_t count = 0;
@@ -146,7 +134,7 @@ static size_t fastNoIntersectionUniqueCount(const VertexID * const *values,
     if (groupInfo->fastNoIntersectionKind == HyperTree::LastLevelGroupInfo::AllEqualFast) {
         const std::vector<VertexID> *toCheck =
                 (!groupInfo->sets.empty()) ? &groupInfo->sets[0].toCheck : nullptr;
-        bool forceCheckedMode = !groupInfo->sets.empty() && groupInfo->sets[0].removedToCheckCount != 0;
+        bool forceCheckedMode = !groupInfo->sets.empty() && (groupInfo->sets[0].removedToCheckCount != 0 || groupInfo->sets[0].toCheckComplete);
         size_t n = countFilteredValues(values[0], lengths[0], visited, partMatch, toCheck,
                                        forceCheckedMode);
         if (!groupInfo->sets.empty())
@@ -163,7 +151,7 @@ static size_t fastNoIntersectionUniqueCount(const VertexID * const *values,
         for (size_t i = 0; i < k; ++i) {
             const std::vector<VertexID> *toCheck =
                     (i < groupInfo->sets.size()) ? &groupInfo->sets[i].toCheck : nullptr;
-            bool forceCheckedMode = i < groupInfo->sets.size() && groupInfo->sets[i].removedToCheckCount != 0;
+            bool forceCheckedMode = i < groupInfo->sets.size() && (groupInfo->sets[i].removedToCheckCount != 0 || groupInfo->sets[i].toCheckComplete);
             size_t n = countFilteredValues(values[i], lengths[i], visited, partMatch, toCheck,
                                            forceCheckedMode);
             if (i < groupInfo->sets.size())

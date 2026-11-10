@@ -71,6 +71,8 @@ struct HyperTree {
         std::vector<VertexID> largerAttrs;
         std::vector<VertexID> smallerAttrs;
         std::vector<VertexID> toCheck;
+        // Empty is safe to bypass only when the exclusion metadata is complete.
+        bool toCheckComplete = false;
         // Number of toCheck vertices removed at plan time because candidate-set
         // containment proves their already matched data vertices are present in
         // this set.  Executor should subtract this number from the fast-count

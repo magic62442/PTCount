@@ -1363,6 +1363,8 @@ static HyperTree::LastLevelGroupInfo makeLastLevelGroupInfo(
         HyperTree::LastLevelCandidateSet set;
         set.vertex = u;
         set.nID = t.v2n[u][0];
+        set.toCheckComplete = kind == LastLevelSelectionKind::Equivalence ||
+                              kind == LastLevelSelectionKind::Subset;
         if (kind == LastLevelSelectionKind::Equivalence) {
             set.largerAttrs = commonLarger;
             set.smallerAttrs = commonSmaller;

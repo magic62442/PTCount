@@ -319,6 +319,13 @@ double tisoComputeIntersectionCost(TisoCostEstimatorContext &ctx,
     return cost;
 }
 
+size_t rootAggregationUpdateCount(const Tree &tree) {
+    // Count stored output-update branches, not coefficient magnitudes.
+    if (tree.getOrbitType() == 2) return tree.getAggreWeight().size();
+    if (tree.getOrbitType() == 1) return tree.getAggreV().size();
+    return 1;
+}
+
 double tisoComputeUpdateCost(TisoCostEstimatorContext &ctx,
                              const Tree &tree,
                              const std::vector<std::vector<VertexID>> &treePairs) {
@@ -327,7 +334,9 @@ double tisoComputeUpdateCost(TisoCostEstimatorContext &ctx,
         const Node &node = tree.getNode(nID);
         std::vector<VertexID> bag = tisoArrayToVector(node.vertices, node.numVertices);
         double adjustedCard = ctx.adjustedCardinality(bag, treePairs);
-        cost += adjustedCard;
+        const size_t branches = nID == tree.getRootID()
+                ? rootAggregationUpdateCount(tree) : 1;
+        cost += adjustedCard * branches * 0.5;
     }
     return cost;
 }

@@ -125,3 +125,28 @@ if(BUILD_TESTING)
                      ${CMAKE_BINARY_DIR})
   endif()
 endif()
+
+if(BUILD_TESTING)
+  add_executable(validate_suffix tests/validate_suffix.cpp)
+  target_link_libraries(validate_suffix PRIVATE ptcount_core)
+  add_test(NAME suffix_counting COMMAND validate_suffix)
+  add_executable(validate_router tests/validate_router.cpp)
+  target_link_libraries(validate_router PRIVATE piso_planner tiso_runner piso_components)
+  add_test(NAME router_structure COMMAND validate_router)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME exact_regression
+             COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/validate_exact.py
+                     ${CMAKE_BINARY_DIR})
+  endif()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(validate_choosec tests/validate_choosec.cpp)
+  target_link_libraries(validate_choosec PRIVATE ptcount_core)
+  add_test(NAME choosec_exact COMMAND validate_choosec)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME artifact_failures
+             COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/validate_artifact_failures.py
+                     ${CMAKE_BINARY_DIR})
+  endif()
+endif()
