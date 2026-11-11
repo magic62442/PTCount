@@ -7,6 +7,10 @@ PTCount is a tree-decomposition-based framework for exact, non-induced subgraph 
 
 The optimizer combines structural rules with cardinality-based cost estimates to select the method. The release interface provides exact, non-induced ISO counting.
 
+## Technical report
+
+[Revisiting Exact Subgraph Counting — technical report](paper-techreport.pdf) describes the methods, analysis, and experiments, including the supplementary appendix.
+
 ## Included programs
 
 - `ptcount`: the main executable. It plans the query and automatically selects pISO or tISO.
